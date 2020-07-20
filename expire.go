@@ -92,7 +92,7 @@ func (t *ExpireMap) Expire(k string, expire int64) {
 		ex := time.Now().Unix() + expire
 		if vv, ok := v.(*expireMapStru); ok {
 			vv.Tm = ex
-			t.c <- expireChanStru{k, +ex}
+			t.c <- expireChanStru{k, ex}
 		}
 	}
 }
