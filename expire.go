@@ -13,7 +13,7 @@ import (
 //ExpireMap 主要结构
 //m 主要的map
 //c 在每次写入时会写入这个chan，来处理过期问题
-//i sync.map的长度
+//在超大数据的情况下，可能出现chan不足的可能，所以慎重选择场景
 type ExpireMap struct {
 	m sync.Map
 	c chan expireChanStru
@@ -66,7 +66,10 @@ func (t *ExpireMap) Store(k, v interface{}, expire int64) {
 	ex := time.Now().Unix() + expire
 	vv := &expireMapStru{v, ex} //保存map
 	t.m.Store(k, vv)
-	t.c <- expireChanStru{k, ex} //保存过期chan
+	select {
+	case t.c <- expireChanStru{k, ex}: //保存过期chan
+	default:
+	}
 }
 
 //LoadOrStore 同 sync.map.LoadOrStore(),但是需要输入一个过期时间（秒）
@@ -77,7 +80,10 @@ func (t *ExpireMap) LoadOrStore(k, v interface{}, expire int64) (interface{}, bo
 	if loaded {
 		return i.(*expireMapStru).Data, loaded
 	}
-	t.c <- expireChanStru{k, ex} //保存过期chan
+	select {
+	case t.c <- expireChanStru{k, ex}: //保存过期chan
+	default:
+	}
 	return nil, false
 }
 
@@ -100,7 +106,7 @@ func (t *ExpireMap) Expire(k string, expire int64) {
 //NewExpire 这个将返回一个带自动过期时间带sync。map
 func NewExpire() *ExpireMap {
 	t := &ExpireMap{
-		c: make(chan expireChanStru, 99999999),
+		c: make(chan expireChanStru, 9999999),
 	}
 	go t.loop()
 	return t
